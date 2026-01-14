@@ -1,33 +1,52 @@
 import java.util.*;
 
 public class ElevatorSimulation{
-    public static final int numFloors = 150;
     public static final int capacity = 20;
-    public static final int numElevators = 8;
     public static final int openTime = 10;
-    public static final int simTime = 3600;
+
     public int totalWait;
+    public int totalTotal;
     public int totalDist;
     public int numPassengers;
-    public List<Passenger> allPassengers;
+
     private List<Elevator> elevators;
     private List<Floor> floors;
+
     public ElevatorSimulation(){
-        allPassengers = new ArrayList<Passenger>();
         elevators = new ArrayList<Elevator>();
         floors = new ArrayList<Floor>();
+
         totalWait=0;
         totalDist=0;
+        totalTotal=0;
         numPassengers=0;
+
         for(int i=0; i<8; i++){
-            Elevator elevator = new Elevator(i+1);
+            Elevator elevator = new Elevator(i, this);
         }
         for(int i=0; i<150; i++){
-            Floor floor = new Floor(i+1);
+            Floor floor = new Floor(i);
         }
     }
     private void runSim(){
-
+        for (int i=0; i<3600; i++){
+            Random random = new Random();
+            int randomNumber = random.nextInt(5);
+            for(int j=0; j<randomNumber; j++){
+                Random randomDest = new Random();
+                int randomNumberDest = random.nextInt(150)+1;
+                Passenger spawn = new Passenger(0, randomNumberDest, this);
+                floors.get(randomNumberDest-1).enqueue(spawn);
+            }
+            Random random2 = new Random();
+            int randomNumber2 = random2.nextInt(5);
+            for(int j=0; j<randomNumber2; j++){
+                Random randomStart = new Random();
+                int randomNumberStart = random.nextInt(150)+1;
+                Passenger spawn = new Passenger(0, randomNumberStart, this);
+                floors.get(randomNumberStart-1).enqueue(spawn);
+            }
+        }
     }
     private void printData(){
         System.out.println("The average wait time was " + totalWait/numPassengers);
@@ -55,7 +74,6 @@ class Passenger{
         this.start=start;
         this.end=end;
         this.requestTime=currTime;
-
     }
     public int getWait(){
         return enterTime-requestTime;
@@ -103,7 +121,6 @@ class Elevator{
     public void unload(){
 
     }
-
 }
 class Floor{
     private int num;
@@ -112,11 +129,14 @@ class Floor{
         this.num=num;
         waiting = new Queue();
     }
-    public void addPassenger(Passenger p){
-
-    }
     public boolean hasWaiting(){
-
+        return !waiting.isEmpty();
+    }
+    public void enqueue(Passenger p){
+        waiting.add(p);
+    }
+    public void dequeue(){
+        waiting.remove();
     }
 
 }
