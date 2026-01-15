@@ -205,8 +205,8 @@ class Elevator {
         IDLE, UP, DOWN, OPEN
     }
 
-    public Elevator(int id, ElevatorSimulation sim) {
-        this.num = id;
+    public Elevator(int name, ElevatorSimulation sim) {
+        this.num = name;
         this.sim = sim;
         this.state = State.IDLE;
         this.currFloor = 0;

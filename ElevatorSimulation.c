@@ -5,13 +5,12 @@
 #include <limits.h>
 #include <float.h>
 
-#define NUM_FLOORS 150
-#define NUM_ELEV 8
-#define SIM_TIME 3600
-#define CAPACITY 20
-#define OPEN_TIME 10
+#define numFloors 150
+#define numElev 8
+#define simTime 3600
+#define elevCapacity 20
+#define openTime 10
 
-// Passenger structure, does not depend on others
 typedef struct Passenger {
     int start;
     int end;
@@ -20,7 +19,6 @@ typedef struct Passenger {
     int exitTime;
 } Passenger;
 
-// Forward declarations for others
 typedef struct Elevator Elevator;
 typedef struct Floor Floor;
 typedef struct ElevatorSimulation ElevatorSimulation;
@@ -237,8 +235,8 @@ struct ElevatorSimulation {
     long totalTravelTime;
     long totalDistance;
     int numPassengers;
-    Elevator* elevators[NUM_ELEV];
-    Floor* floors[NUM_FLOORS];
+    Elevator* elevators[numElev];
+    Floor* floors[numFloors];
 };
 
 ElevatorSimulation* newSim() {
@@ -248,7 +246,7 @@ ElevatorSimulation* newSim() {
     sim->totalDistance = 0;
     sim->numPassengers = 0;
     
-    for (int i = 0; i < NUM_FLOORS; i++) {
+    for (int i = 0; i < numFloors; i++) {
         sim->floors[i] = newFloor(i);
     }
     
@@ -270,9 +268,9 @@ bool hasDown(Elevator* e);
 bool isTarget(Elevator* e, int floor);
 int estimateDist(Elevator* e);
 
-Elevator* newElevator(int id, ElevatorSimulation* sim) {
+Elevator* newElevator(int num, ElevatorSimulation* sim) {
     Elevator* e = (Elevator*)malloc(sizeof(Elevator));
-    e->num = id;
+    e->num = num;
     e->sim = sim;
     e->state = IDLE;
     e->currFloor = 0;
@@ -285,7 +283,7 @@ Elevator* newElevator(int id, ElevatorSimulation* sim) {
 }
 
 bool canBoard(Elevator* e) {
-    return e->passengers->count < CAPACITY;
+    return e->passengers->count < elevCapacity;
 }
 
 void updateElevState(Elevator* e) {
@@ -306,7 +304,7 @@ void addRequest(Elevator* e, int floor, bool goingUp) {
     } else {
         if (e->state == IDLE) {
             e->state = OPEN;
-            e->doorTimer = OPEN_TIME;
+            e->doorTimer = openTime;
         }
     }
     updateElevState(e);
@@ -327,7 +325,7 @@ int estimateDist(Elevator* e) {
 double calculateScore(Elevator* e, int targetFloor, bool goingUp, int currentTime) {
     int totalStops = e->upStops->size + e->downStops->size;
     
-    if (e->passengers->count >= CAPACITY) {
+    if (e->passengers->count >= elevCapacity) {
         return DBL_MAX;
     }
     
@@ -401,7 +399,7 @@ void recordPassenger(ElevatorSimulation* sim, Passenger* p) {
 }
 
 void moveUp(Elevator* e, int time) {
-    if (e->currFloor >= NUM_FLOORS - 1) {
+    if (e->currFloor >= numFloors - 1) {
         getNext(e);
         return;
     }
@@ -427,7 +425,7 @@ void moveUp(Elevator* e, int time) {
     
     if (shouldStop) {
         e->state = OPEN;
-        e->doorTimer = OPEN_TIME;
+        e->doorTimer = openTime;
     } else if (e->upStops->size == 0 && !hasUp(e)) {
         getNext(e);
     }
@@ -460,7 +458,7 @@ void moveDown(Elevator* e, int time) {
     
     if (shouldStop) {
         e->state = OPEN;
-        e->doorTimer = OPEN_TIME;
+        e->doorTimer = openTime;
     } else if (e->downStops->size == 0 && !hasDown(e)) {
         getNext(e);
     }
@@ -587,12 +585,12 @@ void updateElevator(Elevator* e, int time) {
 }
 
 void processRequests(ElevatorSimulation* sim, int time) {
-    Floor* upRequests[NUM_FLOORS];
-    Floor* downRequests[NUM_FLOORS];
+    Floor* upRequests[numFloors];
+    Floor* downRequests[numFloors];
     int upCount = 0;
     int downCount = 0;
     
-    for (int i = 0; i < NUM_FLOORS; i++) {
+    for (int i = 0; i < numFloors; i++) {
         Floor* f = sim->floors[i];
         if (isQueueEmpty(f->waiting)) continue;
         
@@ -627,7 +625,7 @@ void processRequests(ElevatorSimulation* sim, int time) {
         }
     }
     
-    bool assignedElevators[NUM_ELEV] = {false};
+    bool assignedElevators[numElev] = {false};
     
     // Process up requests
     for (int i = 0; i < upCount; i++) {
@@ -637,7 +635,7 @@ void processRequests(ElevatorSimulation* sim, int time) {
         Elevator* best = NULL;
         double bestScore = DBL_MAX;
         
-        for (int j = 0; j < NUM_ELEV; j++) {
+        for (int j = 0; j < numElev; j++) {
             if (assignedElevators[j]) continue;
             
             double score = calculateScore(sim->elevators[j], f->num, true, time);
@@ -662,7 +660,7 @@ void processRequests(ElevatorSimulation* sim, int time) {
         Elevator* best = NULL;
         double bestScore = DBL_MAX;
         
-        for (int j = 0; j < NUM_ELEV; j++) {
+        for (int j = 0; j < numElev; j++) {
             if (assignedElevators[j]) continue;
             
             double score = calculateScore(sim->elevators[j], f->num, false, time);
@@ -683,11 +681,11 @@ void processRequests(ElevatorSimulation* sim, int time) {
 void runSimulation(ElevatorSimulation* sim) {
     srand(time(NULL));
     
-    for (int t = 0; t < SIM_TIME; t++) {
+    for (int t = 0; t < simTime; t++) {
         // People entering building
         int numUp = rand() % 5;
         for (int i = 0; i < numUp; i++) {
-            int dest = rand() % (NUM_FLOORS - 1) + 1;
+            int dest = rand() % (numFloors - 1) + 1;
             Passenger* p = newPassenger(0, dest, t);
             enqueue(sim->floors[0]->waiting, p);
         }
@@ -695,12 +693,12 @@ void runSimulation(ElevatorSimulation* sim) {
         // People leaving building
         int numDown = rand() % 5;
         for (int i = 0; i < numDown; i++) {
-            int start = rand() % (NUM_FLOORS - 1) + 1;
+            int start = rand() % (numFloors - 1) + 1;
             Passenger* p = newPassenger(start, 0, t);
             enqueue(sim->floors[start]->waiting, p);
         }
         
-        for (int i = 0; i < NUM_ELEV; i++) {
+        for (int i = 0; i < numElev; i++) {
             updateElevator(sim->elevators[i], t);
         }
         
@@ -712,13 +710,13 @@ void printResults(ElevatorSimulation* sim) {
     /*printf("Total passengers delivered: %d\n", sim->numPassengers);
     
     int totalWaiting = 0;
-    for (int i = 0; i < NUM_FLOORS; i++) {
+    for (int i = 0; i < numFloors; i++) {
         totalWaiting += sim->floors[i]->waiting->count;
     }
     printf("Passengers still waiting: %d\n", totalWaiting);
     
     printf("\nElevator Status:\n");
-    for (int i = 0; i < NUM_ELEV; i++) {
+    for (int i = 0; i < numElev; i++) {
         Elevator* e = sim->elevators[i];
         const char* stateStr[] = {"IDLE", "UP", "DOWN", "OPEN"};
         printf("Elevator %d: Floor %d, State: %s, Passengers: %d, Stops: %d\n",
@@ -730,14 +728,14 @@ void printResults(ElevatorSimulation* sim) {
         printf("\nAvg wait time: %ld sec\n", sim->totalWaitTime / sim->numPassengers);
         printf("Avg total trip time: %ld sec\n", sim->totalTravelTime / sim->numPassengers);
     }
-    printf("\nAvg distance per elevator: %ld floors\n", sim->totalDistance / NUM_ELEV);
+    printf("\nAvg distance per elevator: %ld floors\n", sim->totalDistance / numElev);
 }
 
 int main() {
     ElevatorSimulation* sim = newSim();
     
     // Initialize elevators
-    for (int i = 0; i < NUM_ELEV; i++) {
+    for (int i = 0; i < numElev; i++) {
         sim->elevators[i] = newElevator(i, sim);
     }
     
