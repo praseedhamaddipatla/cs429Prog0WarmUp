@@ -7,9 +7,9 @@ public class ElevatorSimulation {
     public static final int capacity = 20;
     public static final int openTime = 10;
 
-    public long totalWaitTime = 0;
-    public long totalTravelTime = 0;
-    public long totalDistance = 0;
+    public long totalWait = 0;
+    public long totalTravel = 0;
+    public long totalDist = 0;
     public int numPassengers = 0;
 
     private List<Elevator> elevators;
@@ -54,40 +54,65 @@ public class ElevatorSimulation {
                 floors.get(start).enqueue(p);
             }
             
-            processRequests();
             updateElevators(time);
+            processRequests(time);
         }
         printData();
     }
 
-    private void processRequests() {
+    private void processRequests(int time) {        
+        // Separate up and down requests
+        List<Floor> upRequests = new ArrayList<>();
+        List<Floor> downRequests = new ArrayList<>();
+        
         for (Floor f : floors) {
-            if (f.hasWaiting()) {
-                Passenger p = f.peek();
-                // Determine direction based on the first person in line
-                boolean goingUp = p.getEnd() > p.getStart();
+            if (!f.hasWaiting()) continue;
+            
+            Passenger p = f.peek();
+            if (p == null) continue;
+            
+            if (p.getEnd() > p.getStart()) {
+                upRequests.add(f);
+            } else {
+                downRequests.add(f);
+            }
+        }
+        
+        // Sort by number of waiting passengers
+        upRequests.sort((a, b) -> Integer.compare(b.getWaitingCount(), a.getWaitingCount()));
+        downRequests.sort((a, b) -> Integer.compare(b.getWaitingCount(), a.getWaitingCount()));
+        
+        assignElevatorsToRequests(upRequests, true, time);
+        assignElevatorsToRequests(downRequests, false, time);
+    }
+    
+    private void assignElevatorsToRequests(List<Floor> requests, boolean goingUp, int time) {
+        Set<Integer> assignedElevators = new HashSet<>();
+        
+        for (Floor f : requests) {
+            if (!f.hasWaiting()) continue;
+            
+            // Find best elevator
+            Elevator best = null;
+            double bestScore = Double.MAX_VALUE;
+            
+            for (Elevator e : elevators) {
+                if (assignedElevators.contains(e.num)) continue;
                 
-                Elevator bestElevator = findBestElevator(f.getNum(), goingUp);
+                double score = e.calculateScore(f.getNum(), goingUp, time);
                 
-                if (bestElevator != null && bestElevator.canAcceptRequest()) {
-                    bestElevator.addRequest(f.getNum(), goingUp);
+                // Only consider reasonable elevators
+                if (score < Double.MAX_VALUE && score < bestScore) {
+                    bestScore = score;
+                    best = e;
                 }
             }
-        }
-    }
-
-    private Elevator findBestElevator(int floor, boolean goingUp) {
-        Elevator best = null;
-        int bestScore = Integer.MAX_VALUE;
-
-        for (Elevator e : elevators) {
-            int score = e.calculateScore(floor, goingUp);
-            if (score < bestScore) {
-                bestScore = score;
-                best = e;
+            
+            if (best != null && bestScore < 500) {
+                best.addRequest(f.getNum(), goingUp);
+                assignedElevators.add(best.num);
             }
         }
-        return best;
     }
 
     public void updateElevators(int currTime) {
@@ -97,37 +122,43 @@ public class ElevatorSimulation {
     }
 
     public void recordPassenger(Passenger p) {
-        totalWaitTime += p.getWait();
-        totalTravelTime += p.getTotalTime();
+        totalWait += p.getWait();
+        totalTravel += p.getTotalTime();
         numPassengers++;
     }
     
     public void recordDistance() {
-        totalDistance++;
+        totalDist++;
     }
 
-    private void printData() {
-        System.out.println("--- Simulation Results ---");
+    private void printData(){
+        System.out.println("Total passengers delivered: " + numPassengers);
+        if (numPassengers > 0) {
+            System.out.println("Avg wait time: " + (totalWait / numPassengers) + " sec");
+            System.out.println("Avg total trip time: " + (totalTravel / numPassengers) + " sec");
+        }
+        System.out.println("Avg distance per elevator: " + (totalDist / numElev) + " floors");
+    }
+
+    private void printDataDebug() {
         System.out.println("Total passengers delivered: " + numPassengers);
         
-        // Debug info
         int totalWaiting = 0;
         for (Floor f : floors) {
             totalWaiting += f.getWaitingCount();
         }
         System.out.println("Passengers still waiting: " + totalWaiting);
         
-        // Elevator status
         System.out.println("\nElevator Status:");
         for (Elevator e : elevators) {
             e.printStatus();
         }
         
         if (numPassengers > 0) {
-            System.out.println("\nAvg wait time: " + (totalWaitTime / numPassengers) + " sec");
-            System.out.println("Avg total trip time: " + (totalTravelTime / numPassengers) + " sec");
+            System.out.println("\nAvg wait time: " + (totalWait / numPassengers) + " sec");
+            System.out.println("Avg total trip time: " + (totalTravel / numPassengers) + " sec");
         }
-        System.out.println("\nAvg distance per elevator: " + (totalDistance / numElev) + " floors");
+        System.out.println("\nAvg distance per elevator: " + (totalDist / numElev) + " floors");
     }
 
     public static void main(String[] args) {
@@ -150,6 +181,7 @@ class Passenger {
 
     public int getStart() { return start; }
     public int getEnd() { return end; }
+    public int getRequestTime() { return requestTime; }
 
     public void enter(int time) { enterTime = time; }
     public void exit(int time) { exitTime = time; }
@@ -159,16 +191,15 @@ class Passenger {
 }
 
 class Elevator {
-    private int num;
+    public int num;
     private int currFloor;
     private int doorTimer;
     private List<Passenger> passengers;
     private State state;
     private ElevatorSimulation sim;
     
-    // Using lists to track stops
-    private List<Integer> upStops;
-    private List<Integer> downStops;
+    private TreeSet<Integer> upStops;
+    private TreeSet<Integer> downStops;
 
     public enum State {
         IDLE, UP, DOWN, OPEN
@@ -180,34 +211,20 @@ class Elevator {
         this.state = State.IDLE;
         this.currFloor = 0;
         this.passengers = new ArrayList<>();
-        this.upStops = new ArrayList<>();
-        this.downStops = new ArrayList<>();
+        this.upStops = new TreeSet<>();
+        this.downStops = new TreeSet<>();
     }
 
     public boolean canBoard() {
         return passengers.size() < ElevatorSimulation.capacity;
     }
 
-    public boolean canAcceptRequest() {
-        // Limit queue to prevent one elevator from hogging all requests
-        return state == State.IDLE || (upStops.size() + downStops.size() < 50);
-    }
-
     public void addRequest(int floor, boolean goingUp) {
-        // Add the floor based on what direction need to go
-        
         if (floor > currFloor) {
-            // Floor is above, add to upStops
-            if (!upStops.contains(floor)) {
-                upStops.add(floor);
-            }
+            upStops.add(floor);
         } else if (floor < currFloor) {
-            // Floor is below , add to downStops
-            if (!downStops.contains(floor)) {
-                downStops.add(floor);
-            }
+            downStops.add(floor);
         } else {
-            // At this floor, open doors
             if (state == State.IDLE) {
                 state = State.OPEN;
                 doorTimer = ElevatorSimulation.openTime;
@@ -226,23 +243,44 @@ class Elevator {
         }
     }
 
-    // Heuristic function to choose best elevator
-    public int calculateScore(int targetFloor, boolean goingUp) {
-        if (state == State.IDLE) {
-            return Math.abs(currFloor - targetFloor);
-        } 
-        // Going up and the request is above
-        else if (state == State.UP && goingUp && targetFloor >= currFloor) {
-            return targetFloor - currFloor;
-        } 
-        // Going down and the request is below
-        else if (state == State.DOWN && !goingUp && targetFloor <= currFloor) {
-            return currFloor - targetFloor;
-        } 
-        else {
-            // Penalty if wrong direction
-            return 1000 + Math.abs(currFloor - targetFloor);
+    public double calculateScore(int targetFloor, boolean goingUp, int currentTime) {
+        // Don't accept if overloaded
+        int totalStops = upStops.size() + downStops.size();
+        
+        if (passengers.size() >= ElevatorSimulation.capacity) {
+            return Double.MAX_VALUE;
         }
+        
+        if (state == State.IDLE) {
+            // Idle elevators are best
+            if (totalStops >= 8) return Double.MAX_VALUE;
+            return Math.abs(currFloor - targetFloor);
+        }
+        
+        if (totalStops >= 15) {
+            return Double.MAX_VALUE; // Too busy
+        }
+        
+        // Same direction and target otw
+        if (state == State.UP && goingUp && targetFloor >= currFloor) {
+            return (targetFloor - currFloor) + (passengers.size() * 2) + (totalStops * 10);
+        }
+        
+        if (state == State.DOWN && !goingUp && targetFloor <= currFloor) {
+            return (currFloor - targetFloor) + (passengers.size() * 2) + (totalStops * 10);
+        }
+        
+        // Same direction but passed
+        if (state == State.UP && goingUp && targetFloor < currFloor) {
+            return Double.MAX_VALUE;
+        }
+        
+        if (state == State.DOWN && !goingUp && targetFloor > currFloor) {
+            return Double.MAX_VALUE;
+        }
+        
+        // Wrong direction entirely
+        return Double.MAX_VALUE;
     }
 
     public void update(int time) {
@@ -257,7 +295,7 @@ class Elevator {
                 handleDoors(time);
                 break;
             case IDLE:
-                updateState(); // Check if new tasks
+                updateState();
                 break;
         }
     }
@@ -271,7 +309,6 @@ class Elevator {
         currFloor++;
         sim.recordDistance();
         
-        // Check if need to stop at this floor
         boolean shouldStop = false;
         
         for (Passenger p : passengers) {
@@ -281,17 +318,15 @@ class Elevator {
             }
         }
         
-        // Check if this floor has pickup request
         if (upStops.contains(currFloor)) {
             shouldStop = true;
-            upStops.remove((Integer) currFloor);
+            upStops.remove(currFloor);
         }
         
         if (shouldStop) {
             state = State.OPEN;
             doorTimer = ElevatorSimulation.openTime;
         } else if (upStops.isEmpty() && !hasPassengersGoingUp()) {
-            // No more up destinations
             determineNextState();
         }
     }
@@ -305,10 +340,8 @@ class Elevator {
         currFloor--;
         sim.recordDistance();
         
-        // Check if need to stop at this floor
         boolean shouldStop = false;
         
-        // Check if passenger needs to get off
         for (Passenger p : passengers) {
             if (p.getEnd() == currFloor) {
                 shouldStop = true;
@@ -316,17 +349,15 @@ class Elevator {
             }
         }
         
-        // Check if this floor has pickup request
         if (downStops.contains(currFloor)) {
             shouldStop = true;
-            downStops.remove((Integer) currFloor);
+            downStops.remove(currFloor);
         }
         
         if (shouldStop) {
             state = State.OPEN;
             doorTimer = ElevatorSimulation.openTime;
         } else if (downStops.isEmpty() && !hasPassengersGoingDown()) {
-            // No more down destinations
             determineNextState();
         }
     }
@@ -350,52 +381,73 @@ class Elevator {
     }
 
     private void handleDoors(int time) {
-        // 1. Let people off
         unload(time);
-
-        // 2. Let people on
+        
         Floor f = sim.getFloor(currFloor);
-        if (f != null) {
-            // Determine next direction based on remaining stops
-            boolean willGoUp = !upStops.isEmpty();
-            boolean willGoDown = !downStops.isEmpty();
+        
+        if (f != null && canBoard()) {
+            boolean willGoUp = !upStops.isEmpty() || hasPassengersGoingUp();
+            boolean willGoDown = !downStops.isEmpty() || hasPassengersGoingDown();
             
+            // Try to fill
             while (canBoard() && f.hasWaiting()) {
                 Passenger p = f.peek();
+                if (p == null) break;
+                
                 boolean passengerGoingUp = p.getEnd() > p.getStart();
                 
-                // Board if: going our direction, or we have no direction yet
+                // Board if direction matches or if idle
                 if ((willGoUp && passengerGoingUp) || 
                     (willGoDown && !passengerGoingUp) ||
                     (!willGoUp && !willGoDown)) {
+                    
+                    // Check if too many diff stops
+                    int newStop = p.getEnd();
+                    boolean wouldCreateNewStop = false;
+                    
+                    if (passengerGoingUp) {
+                        wouldCreateNewStop = !upStops.contains(newStop) && 
+                                            !isPassengerGoingTo(newStop);
+                    } else {
+                        wouldCreateNewStop = !downStops.contains(newStop) && 
+                                            !isPassengerGoingTo(newStop);
+                    }
+                    
+                    // Limit new stops when elevator is busy
+                    int totalStops = upStops.size() + downStops.size();
+                    if (wouldCreateNewStop && totalStops >= 8 && passengers.size() > 5) {
+                        break;
+                    }
+                    
                     p = f.dequeue();
                     p.enter(time);
                     passengers.add(p);
                     
                     if (passengerGoingUp) {
-                        if (!upStops.contains(p.getEnd())) {
-                            upStops.add(p.getEnd());
-                        }
+                        upStops.add(p.getEnd());
                     } else {
-                        if (!downStops.contains(p.getEnd())) {
-                            downStops.add(p.getEnd());
-                        }
+                        downStops.add(p.getEnd());
                     }
                     
-                    // Update direction flags as new passengers board
-                    willGoUp = !upStops.isEmpty();
-                    willGoDown = !downStops.isEmpty();
+                    willGoUp = !upStops.isEmpty() || hasPassengersGoingUp();
+                    willGoDown = !downStops.isEmpty() || hasPassengersGoingDown();
                 } else {
-                    break; // Next passenger wants to go the other way
+                    break;
                 }
             }
         }
 
-        // 3. Close doors check
         doorTimer--;
         if (doorTimer <= 0) {
             determineNextState();
         }
+    }
+    
+    private boolean isPassengerGoingTo(int floor) {
+        for (Passenger p : passengers) {
+            if (p.getEnd() == floor) return true;
+        }
+        return false;
     }
 
     private void unload(int time) {
@@ -411,13 +463,16 @@ class Elevator {
     }
 
     private void determineNextState() {
-        // Clear any invalid stops
         upStops.removeIf(floor -> floor < 0 || floor >= ElevatorSimulation.numFloors);
         downStops.removeIf(floor -> floor < 0 || floor >= ElevatorSimulation.numFloors);
         
-        if (!upStops.isEmpty()) {
+        boolean hasUpPassengers = hasPassengersGoingUp();
+        boolean hasDownPassengers = hasPassengersGoingDown();
+        
+        // Prioritize current passengers
+        if (hasUpPassengers || !upStops.isEmpty()) {
             state = State.UP;
-        } else if (!downStops.isEmpty()) {
+        } else if (hasDownPassengers || !downStops.isEmpty()) {
             state = State.DOWN;
         } else {
             state = State.IDLE;
@@ -426,9 +481,8 @@ class Elevator {
     
     public void printStatus() {
         System.out.println("Elevator " + num + ": Floor " + currFloor + ", State: " + state + 
-                         ", Passengers: " + passengers.size());
-        System.out.println("  UpStops: " + upStops);
-        System.out.println("  DownStops: " + downStops);
+                         ", Passengers: " + passengers.size() +
+                         ", Stops: " + (upStops.size() + downStops.size()));
     }
 }
 
