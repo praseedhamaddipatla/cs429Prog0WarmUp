@@ -302,7 +302,7 @@ class Elevator {
 
     private void moveUp(int time) {
         if (currFloor >= ElevatorSimulation.numFloors - 1) {
-            determineNextState();
+            getNext();
             return;
         }
         
@@ -326,14 +326,14 @@ class Elevator {
         if (shouldStop) {
             state = State.OPEN;
             doorTimer = ElevatorSimulation.openTime;
-        } else if (upStops.isEmpty() && !hasPassengersGoingUp()) {
-            determineNextState();
+        } else if (upStops.isEmpty() && !hasUp()) {
+            getNext();
         }
     }
 
     private void moveDown(int time) {
         if (currFloor <= 0) {
-            determineNextState();
+            getNext();
             return;
         }
         
@@ -357,12 +357,12 @@ class Elevator {
         if (shouldStop) {
             state = State.OPEN;
             doorTimer = ElevatorSimulation.openTime;
-        } else if (downStops.isEmpty() && !hasPassengersGoingDown()) {
-            determineNextState();
+        } else if (downStops.isEmpty() && !hasDown()) {
+            getNext();
         }
     }
     
-    private boolean hasPassengersGoingUp() {
+    private boolean hasUp() {
         for (Passenger p : passengers) {
             if (p.getEnd() > currFloor) {
                 return true;
@@ -371,7 +371,7 @@ class Elevator {
         return false;
     }
     
-    private boolean hasPassengersGoingDown() {
+    private boolean hasDown() {
         for (Passenger p : passengers) {
             if (p.getEnd() < currFloor) {
                 return true;
@@ -386,8 +386,8 @@ class Elevator {
         Floor f = sim.getFloor(currFloor);
         
         if (f != null && canBoard()) {
-            boolean willGoUp = !upStops.isEmpty() || hasPassengersGoingUp();
-            boolean willGoDown = !downStops.isEmpty() || hasPassengersGoingDown();
+            boolean willGoUp = !upStops.isEmpty() || hasUp();
+            boolean willGoDown = !downStops.isEmpty() || hasDown();
             
             // Try to fill
             while (canBoard() && f.hasWaiting()) {
@@ -407,10 +407,10 @@ class Elevator {
                     
                     if (passengerGoingUp) {
                         wouldCreateNewStop = !upStops.contains(newStop) && 
-                                            !isPassengerGoingTo(newStop);
+                                            !isTarget(newStop);
                     } else {
                         wouldCreateNewStop = !downStops.contains(newStop) && 
-                                            !isPassengerGoingTo(newStop);
+                                            !isTarget(newStop);
                     }
                     
                     // Limit new stops when elevator is busy
@@ -429,8 +429,8 @@ class Elevator {
                         downStops.add(p.getEnd());
                     }
                     
-                    willGoUp = !upStops.isEmpty() || hasPassengersGoingUp();
-                    willGoDown = !downStops.isEmpty() || hasPassengersGoingDown();
+                    willGoUp = !upStops.isEmpty() || hasUp();
+                    willGoDown = !downStops.isEmpty() || hasDown();
                 } else {
                     break;
                 }
@@ -439,11 +439,11 @@ class Elevator {
 
         doorTimer--;
         if (doorTimer <= 0) {
-            determineNextState();
+            getNext();
         }
     }
     
-    private boolean isPassengerGoingTo(int floor) {
+    private boolean isTarget(int floor) {
         for (Passenger p : passengers) {
             if (p.getEnd() == floor) return true;
         }
@@ -462,12 +462,12 @@ class Elevator {
         }
     }
 
-    private void determineNextState() {
+    private void getNext() {
         upStops.removeIf(floor -> floor < 0 || floor >= ElevatorSimulation.numFloors);
         downStops.removeIf(floor -> floor < 0 || floor >= ElevatorSimulation.numFloors);
         
-        boolean hasUpPassengers = hasPassengersGoingUp();
-        boolean hasDownPassengers = hasPassengersGoingDown();
+        boolean hasUpPassengers = hasUp();
+        boolean hasDownPassengers = hasDown();
         
         // Prioritize current passengers
         if (hasUpPassengers || !upStops.isEmpty()) {
