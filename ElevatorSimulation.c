@@ -734,7 +734,7 @@ void printResults(ElevatorSimulation* sim) {
 int main() {
     ElevatorSimulation* sim = newSim();
     
-    // Initialize elevators
+    // Initialize elevators, separate from floors bc errors, idk why forward declaration did not work :(
     for (int i = 0; i < numElev; i++) {
         sim->elevators[i] = newElevator(i, sim);
     }
