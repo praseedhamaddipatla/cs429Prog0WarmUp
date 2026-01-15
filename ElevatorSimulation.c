@@ -33,7 +33,7 @@ Passenger* newPassenger(int start, int end, int currTime) {
     return p;
 }
 
-// Queue for passengers
+// Passenger quue
 typedef struct QueueItem {
     Passenger* passenger;
     struct QueueItem* next;
@@ -253,7 +253,7 @@ ElevatorSimulation* newSim() {
     return sim;
 }
 
-// Declarations for Elevator functions
+// Elevator functions
 void updateElevState(Elevator* e);
 double calculateScore(Elevator* e, int targetFloor, bool goingUp, int currentTime);
 void addRequest(Elevator* e, int floor, bool goingUp);
@@ -604,7 +604,7 @@ void processRequests(ElevatorSimulation* sim, int time) {
         }
     }
     
-    // Simple sort by waiting count (bubble sort)
+    // sort by waiting count
     for (int i = 0; i < upCount - 1; i++) {
         for (int j = 0; j < upCount - i - 1; j++) {
             if (upRequests[j]->waiting->count < upRequests[j+1]->waiting->count) {
@@ -627,7 +627,7 @@ void processRequests(ElevatorSimulation* sim, int time) {
     
     bool assignedElevators[numElev] = {false};
     
-    // Process up requests
+    // process up requests
     for (int i = 0; i < upCount; i++) {
         Floor* f = upRequests[i];
         if (isQueueEmpty(f->waiting)) continue;
@@ -652,7 +652,7 @@ void processRequests(ElevatorSimulation* sim, int time) {
         }
     }
     
-    // Process down requests
+    // process down requests
     for (int i = 0; i < downCount; i++) {
         Floor* f = downRequests[i];
         if (isQueueEmpty(f->waiting)) continue;
