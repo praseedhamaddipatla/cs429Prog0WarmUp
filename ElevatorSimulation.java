@@ -27,6 +27,7 @@ public class ElevatorSimulation {
         }
     }
 
+    //DO BOUNDS CHECK, elevators moving infinitely
     public Floor getFloor(int index) {
         if (index >= 0 && index < floors.size()) {
             return floors.get(index);
@@ -140,6 +141,7 @@ public class ElevatorSimulation {
         System.out.println("Avg distance per elevator: " + (totalDist / numElev) + " floors");
     }
 
+    //ignore, made when sim not working
     private void printDataDebug() {
         System.out.println("Total passengers delivered: " + numPassengers);
         
@@ -279,7 +281,7 @@ class Elevator {
             return Double.MAX_VALUE;
         }
         
-        // Wrong direction entirely
+        // Wrong direction, not option
         return Double.MAX_VALUE;
     }
 
@@ -469,7 +471,7 @@ class Elevator {
         boolean hasUpPassengers = hasUp();
         boolean hasDownPassengers = hasDown();
         
-        // Prioritize current passengers
+        // Current passengers more important
         if (hasUpPassengers || !upStops.isEmpty()) {
             state = State.UP;
         } else if (hasDownPassengers || !downStops.isEmpty()) {
